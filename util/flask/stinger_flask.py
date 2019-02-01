@@ -74,7 +74,6 @@ class Insert(Resource):
         503: 'Unable to reach STINGER'
     })
     def post(self):
-        setupSTINGERConnection()
         exec_time = time.time()
         if not request.json:
             r = json.dumps({"error": "Invalid input"})
@@ -106,7 +105,6 @@ class Insert(Resource):
                         s.add_insert(source, destination, edge_type,
                             weight=edge_weight, ts=timestamp,
                             insert_strings=only_strings)
-                        # print "added edge", source, destination, edge_type, timestamp
                     except Exception as e:
                         print(traceback.format_exc())
                         pass
@@ -114,8 +112,8 @@ class Insert(Resource):
                 # send immediately if the batch is now large
                 current_batch_size = s.insertions_count + s.deletions_count + s.vertex_updates_count
                 if current_batch_size > BATCH_THRESHOLD and BATCH_THRESHOLD > 0 or send_immediate:
-                    s.send_batch()
                     print "Sending  batch of size", current_batch_size, 'at', strftime("%Y%m%d%H%M%S", gmtime()),""
+                    s.send_batch()
 
         except:
             print(traceback.format_exc())
@@ -411,7 +409,7 @@ def stingerRPC(payload):
         try:
             r = requests.post(urlstr, data=json.dumps(payload))
         except Exception as e:
-            raise RuntimeError("RPC failed.")
+            raise RuntimeError("RPC failed.", e)
     except:
         print(traceback.format_exc())
         return Response(response=json.dumps({"error": "JSON-RPC down"}),status=503,mimetype="application/json")
@@ -425,8 +423,7 @@ def connect(strings=True):
     global s
     global counter_lock
     s = sn.StingerStream(config['STINGER_HOST'], 10102, strings, config['UNDIRECTED'])
-    if s.sock_handle == -1:
-        raise Exception("Failed to connect to STINGER")
+    s.verify_connection()
     directedness = 'UNdirected' if config['UNDIRECTED'] else 'directed'
     print "Edges will be inserted as",directedness
 
@@ -440,8 +437,9 @@ def sendBatch():
     if current_batch_size > 0:
         counter_lock.acquire()
         try:
-            s.send_batch()
             print "Sending  batch of size", current_batch_size, 'at', strftime("%Y%m%d%H%M%S", gmtime()),""
+            s.send_batch()
+            print 'Sent batch!'
         finally:
             counter_lock.release()
 
@@ -473,7 +471,7 @@ def setupSTINGERConnection():
             print str(e)
             print 'STINGER timer setup unsuccessful'
 
-def thread_webapp():
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="STINGER Flask Relay Server")
     parser.add_argument('--undirected', action="store_true")
     parser.add_argument('--flask_host', default=config['FLASK_HOST'])
@@ -486,25 +484,3 @@ def thread_webapp():
     config['UNDIRECTED'] = args.undirected
     setupSTINGERConnection()
     application.run(debug=False,host=args.flask_host,port=args.flask_port)
-
-#
-# main
-#
-if __name__ == '__main__':
-    signal.signal(signal.SIGINT, signal_handler)
-    t_webApp = threading.Thread(name='Web App', target=thread_webapp)
-    t_webApp.setDaemon(True)
-    t_webApp.start()
-
-    try:
-        while True:
-            time.sleep(30)
-            print "Watchdog: Checking Stinger connection."
-            if s.is_connected() is False:
-                print 'Stinger connection was lost. Restarting.'
-                exit(1)
-            else:
-                print "Watchdog: Stinger connection is good."
-    except KeyboardInterrupt:
-        print "Shutting Down"
-        exit(0)

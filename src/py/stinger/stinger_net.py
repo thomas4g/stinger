@@ -1,5 +1,6 @@
 from ctypes import *
 import os
+import time
 from stinger_core import Stinger
 
 if(os.getenv('STINGER_LIB_PATH')):
@@ -105,7 +106,27 @@ class StingerStream():
     return self.sock_handle != -1
 
   def is_connected(self):
-    return libstinger_net['stream_is_connected'](c_int(self.sock_handle))
+    return self.sock_handle != -1
+
+  def verify_connection(self, num_tries=0):
+    if self.is_connected() is False:
+        if num_tries  < 5:
+            print 'STINGER connection failed, attempting reconnection... (try #{})'.format(num_tries + 1)
+            try:
+                connection_success = self.connect(self.host, self.port)
+            except Exception as e:
+                print str(e)
+                connection_success = False
+
+            if not connection_success:
+                print 'STINGER reconnection failed, waiting 5s before retrying...'
+                time.sleep(5)
+                self.verify_connection(num_tries + 1)
+
+            print 'Reconnected to STINGER'
+        else:
+            print 'Failed to connect to STINGER and max tries exhausted.'
+            raise RuntimeError('Failed to connect to STINGER')
 
   def add_insert(self, vfrom, vto, etype=0, weight=0, ts=0, insert_strings=None):
     self.only_strings = insert_strings if insert_strings is not None else self.only_strings
@@ -199,12 +220,11 @@ class StingerStream():
         self.vertex_updates_refs = []
     else:
         print('Lost connection to STINGER core server, attempting to reconnect...')
-        if self.connect(self.host, self.port):
-            print('Reattempting batch send...')
-            self.send_batch()
-            print('Batch sent successfully')
-        else:
-            raise RuntimeError()
+        self.connect(self.host, self.port)
+        self.verify_connection()
+        print('Regained connection, sending batch...')
+        self.send_batch()
+        print('Batch sent successfully')
 
 
 
