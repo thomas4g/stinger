@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include <algorithm>
 #include <functional>
 #define __STDC_LIMIT_MACROS
@@ -127,9 +128,12 @@ int
 main (int argc, char ** argv)
 {
   int unleash_daemon = 0;
+  
+  std::string stinger_host = "localhost";
+  int stinger_port = 10103;
 
   int opt = 0;
-  while(-1 != (opt = getopt(argc, argv, "h?d"))) {
+  while(-1 != (opt = getopt(argc, argv, "h?d?s:"))) {
     switch(opt) {
       default: {
 	LOG_E_A("Unknown option %c", opt);
@@ -139,6 +143,11 @@ main (int argc, char ** argv)
 	printf("Usage: %s [-d]\n", argv[0]);
 	printf("-d\tdaemon mode\n");
 	exit(-1);
+      } break;
+
+      case 's': {
+        LOG_E_A("Setting server_host to %s", optarg);
+        stinger_host = optarg;
       } break;
 	
       case 'd': {
@@ -178,7 +187,7 @@ main (int argc, char ** argv)
   server_state.add_rpc_session("get_latlon_gnip", new JSON_RPC_get_latlon_gnip(0, &server_state));
   server_state.add_rpc_session("get_latlon_twitter", new JSON_RPC_get_latlon_twitter(0, &server_state));
 
-  mon_connect(10103, "localhost", "json_rpc");
+  mon_connect(stinger_port, stinger_host.c_str(), "json_rpc");
 
   /* Mongoose setup and start */
   struct mg_context *ctx;
