@@ -25,9 +25,11 @@ logging.basicConfig(stream=sys.stderr)
 baseDir = os.path.dirname(os.path.realpath(__file__)) + '/../../'
 config = {
     'STINGER_BASE':baseDir,
+    'STINGER_RPC_HOST':'localhost',
     'STINGER_HOST':'localhost',
     'STINGER_LOGDIR':'/var/log/stinger/',
     'STINGER_RPC_PORT': 8088,
+    'STINGER_SERVER_PORT': 10102,
     'LIB_PATH':baseDir + 'build/lib/',
     'PY_PATH':baseDir + 'src/py/',
     'SESSION_NAME':'ManagedSTINGER',
@@ -405,7 +407,7 @@ def stingerctl(command):
 
 def stingerRPC(payload):
     try:
-        urlstr = 'http://{0}:{1}/jsonrpc'.format(config['STINGER_HOST'],config['STINGER_RPC_PORT'])
+        urlstr = 'http://{0}:{1}/jsonrpc'.format(config['STINGER_RPC_HOST'],config['STINGER_RPC_PORT'])
         try:
             r = requests.post(urlstr, data=json.dumps(payload))
         except Exception as e:
@@ -422,7 +424,7 @@ def stingerRPC(payload):
 def connect(strings=True):
     global s
     global counter_lock
-    s = sn.StingerStream(config['STINGER_HOST'], 10102, strings, config['UNDIRECTED'])
+    s = sn.StingerStream(config['STINGER_HOST'], config['STINGER_SERVER_PORT'], strings, config['UNDIRECTED'])
     s.verify_connection()
     directedness = 'UNdirected' if config['UNDIRECTED'] else 'directed'
     print "Edges will be inserted as",directedness
@@ -477,10 +479,14 @@ if __name__ == '__main__':
     parser.add_argument('--flask_host', default=config['FLASK_HOST'])
     parser.add_argument('--flask_port', default=config['FLASK_PORT'], type=int)
     parser.add_argument('--stinger_host', default=config['STINGER_HOST'])
+    parser.add_argument('--stinger_server_port', default=config['STINGER_SERVER_PORT'], type=int)
+    parser.add_argument('--stinger_rpc_host', default=config['STINGER_RPC_HOST'])
     parser.add_argument('--stinger_rpc_port', default=config['STINGER_RPC_PORT'], type=int)
     args = parser.parse_args()
-    config['STINGER_HOST'] = args.stinger_host
+    config['STINGER_RPC_HOST'] = args.stinger_rpc_host
     config['STINGER_RPC_PORT'] = args.stinger_rpc_port
+    config['STINGER_HOST'] = args.stinger_host
+    config['STINGER_SERVER_PORT'] = args.stinger_server_port
     config['UNDIRECTED'] = args.undirected
     setupSTINGERConnection()
     application.run(debug=False,host=args.flask_host,port=args.flask_port)
